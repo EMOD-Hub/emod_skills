@@ -6,8 +6,9 @@ description: >
   or migrate docs for EMOD-Hub / IDM repos, fix outdated references, remove FAQ
   pages, update OS support language, fix package index URLs, or update GitHub
   org links. Covers .md, .rst, .txt, .py (docstrings), and similar text-based
-  doc files. Do NOT use for code logic changes, CI/YAML pipelines, or
-  non-documentation source files.
+  doc files, plus adding any doc-build dependencies the edits require (e.g.
+  pyproject.toml docs extras). Do NOT use for code logic changes, CI/YAML
+  pipelines, or non-documentation source files.
 ---
 
 # EMOD-Hub Documentation Update Skill
@@ -18,7 +19,9 @@ and Markdown files across EMOD-Hub repositories. Apply every rule below to
 several changes.
 
 **Apply rules in order.** Rule 1 must run first — it creates `bib.md`, which
-Rules 3 and 6 depend on to write new links correctly.
+Rules 3 and 6 depend on to write new links correctly. Rule 7 must run last —
+it closes the loop by adding any build dependencies that earlier rules have
+caused the doc toolchain to need.
 
 The user may provide one or more files, a repo path, or a description of the
 docs to update. Produce clean, updated file content (or a diff) and clearly
@@ -347,6 +350,104 @@ See https://github.com/InstituteforDiseaseModeling/emod-api/issues/42 for contex
 
 ---
 
+## Rule 7 — Add Build Dependencies Required by Doc Changes *(run this last)*
+
+**What to do**
+
+Some edits introduced by Rules 1–6 can cause the Sphinx / MyST / doc toolchain
+to need a package it did not need before. If a rule adds a new kind of source
+file (for example, the first `.md` file from Rule 1 in a previously RST-only
+project) or begins to exercise a toolchain feature that was configured but
+never actually triggered (e.g. a MyST extension listed in `conf.py` whose
+backing package was never installed), the doc build will start failing with a
+`ModuleNotFoundError` or similar missing-dependency error.
+
+For **every rule that fires**, ask: "does this change cause the doc build to
+need something new?" If yes, add the dependency in the same PR.
+
+**Where to add the dependency**
+
+Add it to the project's documentation dependency set, in this order of
+preference (use whichever the repo already uses):
+
+1. `pyproject.toml` under `[project.optional-dependencies].docs` — the canonical
+   location in modern EMOD-Hub repos. CI installs via `pip install .[docs]`.
+2. `setup.py` / `setup.cfg` under `extras_require={"docs": [...]}` — older
+   repos.
+3. `docs/requirements.txt` — if the repo uses a dedicated requirements file
+   for docs.
+
+Pin loosely (compatible-release `~=`) to match the repo's existing style.
+Prefer the extras-style form (e.g. `myst-parser[linkify]`) over adding a
+separate top-level dependency, since extras keep related packages co-versioned.
+
+**When this rule fires**
+
+Common triggers seen in practice:
+
+| Earlier change | New dependency needed | Why |
+|---|---|---|
+| Rule 1 creates the first `.md` file in a previously RST-only project, and `conf.py` already enables the MyST `linkify` extension | `myst-parser[linkify]` (pulls in `linkify-it-py`) | MyST only processes Markdown, so the `linkify` extension was dormant until a `.md` file existed. First Markdown doc causes `ModuleNotFoundError: Linkify enabled but not installed.` |
+| Adding a notebook (`.ipynb`) to the doc tree | `nbsphinx` or `myst-nb` | Sphinx needs a parser for notebook source files. |
+| Adding Mermaid / PlantUML diagrams | `sphinxcontrib-mermaid` / `plantweb` | Diagram directives fail without their backing extension. |
+| Adding dollar-math or AMS-math in `.md` files | `myst-parser[linkify]` is not enough — ensure `myst_enable_extensions` has `dollarmath`/`amsmath` and the MyST version supports them | Math extensions are built into `myst-parser` but must be enabled. No new package, but verify `conf.py`. |
+
+**How to verify**
+
+After adding the dependency:
+
+1. Confirm the dependency file change (show the diff).
+2. Confirm the doc-build CI workflow (e.g. `.github/workflows/mkdocs_build.yml`)
+   installs via the same extras set you updated — if it uses `pip install .[docs]`
+   the change will flow through automatically; if it uses a pinned
+   `requirements.txt`, that file needs updating too.
+3. If you can run the build locally, do so and verify no `ModuleNotFoundError`.
+
+**Example — Linkify**
+
+A repo that previously had only `.rst` docs adds `docs/bib.md` as part of
+Rule 1. `docs/conf.py` already contains:
+
+```python
+myst_enable_extensions = [
+    ...,
+    "linkify",
+    ...,
+]
+```
+
+The next doc build fails on GitHub Actions with:
+
+```
+ModuleNotFoundError: Linkify enabled but not installed.
+```
+
+Because the `linkify` MyST extension requires the `linkify-it-py` package,
+which ships as an optional extra of `myst-parser`. Fix in `pyproject.toml`:
+
+```diff
+ docs = [
+     ...
+-    "myst-parser~=2.0",
++    "myst-parser[linkify]~=2.0",
+     ...
+ ]
+```
+
+No workflow change is needed because `mkdocs_build.yml` installs via
+`pip install .[docs]`. The next build succeeds.
+
+**What NOT to do**
+
+- Do not add dependencies speculatively. Only add what an actually-failing
+  build (or a build you can predict will fail from the configuration) needs.
+- Do not pin exact versions unless the repo already uses exact pins.
+- Do not add a runtime dependency (top-level `dependencies` in
+  `pyproject.toml`) for a docs-only package — keep it scoped to the `docs`
+  extra.
+
+---
+
 ## Verification Checklist
 
 After applying all rules, confirm the following before returning the updated
@@ -362,6 +463,7 @@ files:
 | Search for `InstituteforDiseaseModeling` | Zero occurrences (except `/issues/` and `/pull/` URLs) |
 | Search for inline external links `](http` in `.md` files | Zero occurrences (all moved to `bib.md`) |
 | All surviving links resolve logically | No broken anchors introduced by removals |
+| Doc build dependencies cover all new file types / toolchain features (Rule 7) | `pyproject.toml` (or equivalent) lists every package the doc build now needs |
 
 ---
 
