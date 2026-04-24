@@ -1,4 +1,4 @@
-# emod-hub-claude-skills
+# emod_skills
 
 A shared library of Claude Code skills for EMOD-Hub contributors. Skills teach
 Claude how to perform complex, repo-specific tasks consistently across all
@@ -28,27 +28,60 @@ repo you work in).
 
 ### Global install — recommended for EMOD-Hub contributors
 
-Installs all skills once so they are available in every repo:
+Installs all skills once so they are available in every repo.
+
+**macOS / Linux (bash/zsh):**
 
 ```bash
 # Clone this repo somewhere on your machine
-git clone https://github.com/EMOD-Hub/emod-hub-claude-skills.git ~/emod-hub-claude-skills
+git clone https://github.com/EMOD-Hub/emod_skills.git ~/emod_skills
 
 # Symlink the skills folder into your global Claude config
 mkdir -p ~/.claude/skills
-ln -s ~/emod-hub-claude-skills/skills/emod-hub-doc-update ~/.claude/skills/emod-hub-doc-update
+ln -s ~/emod_skills/skills/emod-hub-doc-update ~/.claude/skills/emod-hub-doc-update
 ```
+
+**Windows (PowerShell, run as Administrator or with Developer Mode on):**
+
+```powershell
+# Clone this repo somewhere on your machine
+git clone https://github.com/EMOD-Hub/emod_skills.git $env:USERPROFILE\emod_skills
+
+# Create the global skills folder if it does not exist
+New-Item -ItemType Directory -Force -Path $env:USERPROFILE\.claude\skills | Out-Null
+
+# Symlink the skill into your global Claude config
+New-Item -ItemType SymbolicLink `
+  -Path  "$env:USERPROFILE\.claude\skills\emod-hub-doc-update" `
+  -Target "$env:USERPROFILE\emod_skills\skills\emod-hub-doc-update"
+```
+
+> Windows note: creating symlinks requires either an elevated PowerShell
+> session or Developer Mode enabled (Settings → Privacy & security → For
+> developers). If you cannot use symlinks, `mklink /J` (a directory junction)
+> from `cmd.exe` works as a drop-in replacement.
 
 To pick up new or updated skills in future, just `git pull` inside the cloned
 repo — the symlink means Claude always reads the latest version.
 
 ### Per-project install
 
-Run this from the root of the repo you are working on:
+Run this from the root of the repo you are working on.
+
+**macOS / Linux:**
 
 ```bash
 mkdir -p .claude/skills
-ln -s /path/to/emod-hub-claude-skills/skills/emod-hub-doc-update .claude/skills/emod-hub-doc-update
+ln -s /path/to/emod_skills/skills/emod-hub-doc-update .claude/skills/emod-hub-doc-update
+```
+
+**Windows (PowerShell):**
+
+```powershell
+New-Item -ItemType Directory -Force -Path .\.claude\skills | Out-Null
+New-Item -ItemType SymbolicLink `
+  -Path  ".\.claude\skills\emod-hub-doc-update" `
+  -Target "C:\path\to\emod_skills\skills\emod-hub-doc-update"
 ```
 
 Add `.claude/skills/` to that repo's `.gitignore` if you do not want the
@@ -102,7 +135,14 @@ Claude will:
 Skills evolve as org conventions change. To get the latest version:
 
 ```bash
-cd ~/emod-hub-claude-skills
+# macOS / Linux
+cd ~/emod_skills
+git pull
+```
+
+```powershell
+# Windows (PowerShell)
+cd $env:USERPROFILE\emod_skills
 git pull
 ```
 
@@ -179,7 +219,7 @@ Instructions on how Claude should format and structure its response.
 ## Repository structure
 
 ```
-emod-hub-claude-skills/
+emod_skills/
 ├── README.md                          # this file
 └── skills/
     └── emod-hub-doc-update/
