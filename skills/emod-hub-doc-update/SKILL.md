@@ -3,12 +3,13 @@ name: emod-hub-doc-update
 description: >
   Use this skill when updating documentation, docstrings, or Markdown files
   across EMOD-Hub repositories. Triggers include: any request to update, audit,
-  or migrate docs for EMOD-Hub / IDM repos, fix outdated references, remove FAQ
-  pages, update OS support language, fix package index URLs, or update GitHub
-  org links. Covers .md, .rst, .txt, .py (docstrings), and similar text-based
-  doc files, plus adding any doc-build dependencies the edits require (e.g.
-  pyproject.toml docs extras). Do NOT use for code logic changes, CI/YAML
-  pipelines, or non-documentation source files.
+  or migrate docs for EMOD-Hub / IDM repos, fix outdated references, remove
+  pages or links to deprecated/retired resources (FAQ, EMOD-InputData,
+  docs-emod-scenarios), update OS support language, fix package index URLs, or
+  update GitHub org links. Covers .md, .rst, .txt, .py (docstrings), and
+  similar text-based doc files, plus adding any doc-build dependencies the
+  edits require (e.g. pyproject.toml docs extras). Do NOT use for code logic
+  changes, CI/YAML pipelines, or non-documentation source files.
 ---
 
 # EMOD-Hub Documentation Update Skill
@@ -110,20 +111,40 @@ Clone the repo from [EMOD-Hub][emod-hub].
 
 ---
 
-## Rule 2 — Remove FAQ Pages and All References to Them
+## Rule 2 — Remove Pages and References to Deprecated or Retired Resources
 
 **What to do**
 
-- Delete any file whose name, title, or slug identifies it as an FAQ
-  (e.g. `faq.md`, `FAQ.rst`, `frequently-asked-questions.md`).
-- Search every remaining file for links, cross-references, nav-menu entries,
-  `toctree` entries, or prose mentions that point to the deleted FAQ page and
-  **remove those references entirely**.
-- If a sentence only exists to say "see the FAQ", delete the whole sentence.
-- If a section heading or paragraph is primarily about directing users to the
-  FAQ, delete it.
+Several documentation resources referenced by older EMOD-Hub docs are now
+deprecated, retired, or archived. Delete any pages dedicated to them and remove
+every link, `toctree` entry, include directive, `git clone` command, RST link
+target (`.. _label:`), and prose mention that points at them.
 
-**Examples**
+This rule covers (at minimum) the resources in the table below. Treat the list
+as additive — if you encounter another retired resource, follow the same
+removal pattern.
+
+| Resource | Status | What to find and remove |
+|---|---|---|
+| FAQ pages (`faq.md`, `FAQ.rst`, `frequently-asked-questions.*`) | Deprecated | Delete the file; remove every link, toctree entry, and "see the FAQ" sentence |
+| `EMOD-InputData` GitHub repo | Archived 2026-02-19 — input files merged into main `EMOD` repo | Remove every URL containing `EMOD-InputData` (under any GitHub org), every `git clone .../EMOD-InputData.git` command, and prose paragraphs about downloading input data from this repo |
+| `docs-emod-scenarios` GitHub repo | Retired — never migrated to EMOD-Hub | Remove every URL containing `docs-emod-scenarios` (under any GitHub org), every `.. _EMOD scenarios:` RST link target, and prose mentions of "EMOD scenarios releases" |
+
+**How to remove cleanly**
+
+- If a sentence exists only to point at one of these resources, delete the
+  whole sentence.
+- If a paragraph or section is primarily about one of these resources, delete
+  the section heading and its body.
+- If a `toctree` or `.. include::` directive references one of these, drop
+  the entry. Do not leave a dangling include.
+- If a sentence mixes a deprecated reference with still-relevant content, keep
+  the relevant part and rewrite the sentence so it stands on its own.
+- After removing an RST link target (`.. _label: URL`), grep for any remaining
+  `` `label`_ `` references in the same file and remove or rephrase those too,
+  otherwise Sphinx will warn about an unreferenced target.
+
+**Examples — FAQ**
 
 ```
 # BEFORE
@@ -144,6 +165,48 @@ For common questions, see the [FAQ page](faq.md).
 .. toctree::
    install
    contributing
+```
+
+**Examples — EMOD-InputData**
+
+```
+# BEFORE (RST prose)
+Clone the input data repository::
+
+    git clone https://github.com/InstituteforDiseaseModeling/EMOD-InputData.git
+
+# AFTER
+(entire paragraph and code block removed; if the surrounding section was only
+about input data, drop the section heading too)
+```
+
+```
+# BEFORE (inline RST link)
+See the GitHub `EMOD-InputData <https://github.com/InstituteforDiseaseModeling/EMOD-InputData>`_ repository for sample demographics files.
+
+# AFTER
+(sentence removed; sample demographics now live in the main EMOD repo, so
+either drop the reference entirely or rewrite to point at the relevant
+in-repo path if known)
+```
+
+**Examples — docs-emod-scenarios**
+
+```
+# BEFORE (RST link target)
+.. _EMOD scenarios: https://github.com/InstituteforDiseaseModeling/docs-emod-scenarios/releases
+
+# AFTER
+(line removed; also remove every `EMOD scenarios`_ reference elsewhere in the
+file — Sphinx will warn about unreferenced targets if you leave them)
+```
+
+```
+# BEFORE (prose)
+For example scenarios, see the `EMOD scenarios`_ releases on GitHub.
+
+# AFTER
+(sentence removed)
 ```
 
 ---
@@ -294,15 +357,13 @@ pip install emod-api
   history and may not map correctly after an org move.
 - **Exception — repo not migrated to EMOD-Hub:** Before rewriting a repo URL,
   verify the repo actually exists under `github.com/EMOD-Hub/<repo>`. If it
-  does not (e.g. it was retired, renamed, or never migrated), **keep the
-  original `InstituteforDiseaseModeling` URL unchanged** — do not rewrite it
-  and do not leave a `TODO` comment in the file. A known case is
-  `docs-emod-scenarios`, which remains at
-  `https://github.com/InstituteforDiseaseModeling/docs-emod-scenarios`.
-  When in doubt during an initial pass, you may insert a `TODO: verify` note
-  so the user can confirm, but once verified the TODO must be removed and the
-  URL settled one way or the other — no TODO comments should remain in
-  final output.
+  does not (retired, renamed, or never migrated), **prefer removing the
+  reference** under Rule 2's removal pattern rather than rewriting it or
+  leaving a stale `InstituteforDiseaseModeling` URL behind. Only keep the
+  original URL if the reference is still load-bearing for the doc and no
+  EMOD-Hub equivalent exists; in that case, flag it in the `## Items to
+  verify` section so the user can confirm. Do not leave `TODO` comments in
+  the final file output.
 
 **Examples**
 
@@ -338,14 +399,6 @@ See https://github.com/InstituteforDiseaseModeling/emod-api/issues/42 for contex
 
 # AFTER (no change)
 See https://github.com/InstituteforDiseaseModeling/emod-api/issues/42 for context.
-```
-
-```
-# BEFORE (repo that does not exist under EMOD-Hub — leave untouched)
-.. _EMOD scenarios: https://github.com/InstituteforDiseaseModeling/docs-emod-scenarios/releases
-
-# AFTER (no change — docs-emod-scenarios was not migrated to EMOD-Hub)
-.. _EMOD scenarios: https://github.com/InstituteforDiseaseModeling/docs-emod-scenarios/releases
 ```
 
 ---
@@ -457,6 +510,8 @@ files:
 |---|---|
 | `bib.md` exists at docs root | Present and contains all extracted labels |
 | Search for `faq` (case-insensitive) | No remaining links or toctree entries pointing to an FAQ page |
+| Search for `EMOD-InputData` | Zero occurrences (repo is archived; references should be removed per Rule 2) |
+| Search for `docs-emod-scenarios` | Zero occurrences (repo retired; references should be removed per Rule 2) |
 | Search for `idm@gatesfoundation.org` | Zero occurrences |
 | Search for `CentOS` (case-insensitive) | Zero occurrences |
 | Search for `packages.idmod.org` | Zero occurrences |
