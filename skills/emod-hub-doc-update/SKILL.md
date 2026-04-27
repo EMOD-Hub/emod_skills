@@ -30,15 +30,43 @@ summarise every change made.
 
 ---
 
-## Rule 1 — Centralise All External Links into bib.md *(run this first)*
+## Rule 1 — Centralise External Links into bib.md (Sphinx doc tree only) *(run this first)*
 
 **What to do**
 
-Every external URL in a documentation file should be defined once in a central
-`bib.md` file at the root of the docs directory, then referenced by a short
-label in each doc. This makes future link maintenance a single-file operation.
+Every external URL in a documentation file under the Sphinx doc tree (i.e. the
+project's `docs/` directory) should be defined once in a central `bib.md` file
+at the root of that doc directory, then referenced by a short label in each
+doc. This makes future link maintenance a single-file operation.
 **This rule runs before all others** so that Rules 3 and 6 can write their new
 links directly into `bib.md` as reference-style links rather than inline.
+
+**Scope — what `bib.md` covers and what it does not**
+
+`bib.md` is **only consulted by files inside the Sphinx doc tree** (the
+`docs/` directory or wherever `conf.py` lives). It does not propagate to
+standalone Markdown files outside that tree, because Markdown reference
+definitions resolve **per-file** when rendered by GitHub or any other
+non-Sphinx renderer.
+
+Apply Rule 1 to:
+
+- All `.md` files inside the Sphinx doc tree (typically `docs/**/*.md`).
+
+Do **not** apply Rule 1 to:
+
+- Top-level repo files: `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`,
+  `getting_started.md`, `tutorial_*.md`, etc. These are rendered standalone
+  by GitHub and have no access to `docs/bib.md`.
+- READMEs inside non-doc directories: `examples/**/README.md`,
+  `examples-container/**/README.md`, `.devcontainer/README.md`, etc.
+- Any other `.md` file outside the directory containing `bib.md`.
+
+For these standalone files, **keep links inline** (`[text](https://...)`).
+If a standalone file already uses reference-style links, the reference
+definitions must live at the bottom of that same file — never reach across
+to `docs/bib.md`. Subsequent rules (3, 4, 5, 6) still apply to standalone
+files; they just rewrite the URL in place rather than going through `bib.md`.
 
 **Step 1 — Create or update `bib.md`**
 
@@ -59,9 +87,10 @@ Update links here; all docs reference this file by label.
 If `bib.md` already exists, append new entries — do not duplicate labels that
 are already defined.
 
-**Step 2 — Extract links from each doc file**
+**Step 2 — Extract links from each in-scope `.md` file**
 
-For each `.md` file being updated:
+For each in-scope `.md` file (per the Scope section above — i.e. files inside
+the Sphinx doc tree):
 - Find every inline link of the form `[text](https://...)` where the URL is an
   external address (starts with `http://` or `https://`).
 - Choose a short, descriptive, lowercase hyphenated label for the URL
@@ -69,14 +98,28 @@ For each `.md` file being updated:
 - Add an entry to `bib.md`: `[label]: https://full-url-here`
 - Replace the inline link in the doc with a reference-style link: `[text][label]`
 
-**Step 3 — Use reference-style links going forward**
+For standalone `.md` files outside the doc tree, **leave the inline link
+in place**. Do not move them to `bib.md` — the labels would not resolve
+when GitHub renders the file.
 
-Any new links introduced by subsequent rules (e.g. the discussions board URL
-from Rule 3, the EMOD-Hub GitHub URL from Rule 6) must also be added to
-`bib.md` and referenced by label — never written inline.
+**Step 3 — Use reference-style links going forward (in-tree only)**
+
+Any new links introduced by subsequent rules in **in-scope** doc files
+(e.g. the discussions board URL from Rule 3, the EMOD-Hub GitHub URL from
+Rule 6) must also be added to `bib.md` and referenced by label — never
+written inline.
+
+In **standalone** `.md` files, the same subsequent rules just rewrite the
+URL inline. Do not introduce new `[label]:` definitions in standalone files
+unless that file already uses the reference-style convention with its own
+bottom-of-file definitions; in that case, add the new definition to the
+same file (not to `docs/bib.md`).
 
 **What NOT to move to bib.md**
 
+- Links in standalone `.md` files outside the Sphinx doc tree (root
+  `README.md`, top-level `tutorial_*.md`, `examples/**/README.md`, etc.) —
+  these stay inline (see Scope section above).
 - Internal relative links (e.g. `[see here](../install.md)`) stay inline.
 - Anchor-only links (e.g. `[top](#top)`) stay inline.
 - Image links `![alt](url)` stay inline.
@@ -85,20 +128,28 @@ from Rule 3, the EMOD-Hub GitHub URL from Rule 6) must also be added to
 **Examples**
 
 ```
-# BEFORE (inline links in README.md)
+# BEFORE — docs/intro.md (in-scope, inside the Sphinx doc tree)
 Please post questions on our
 [discussion board](https://github.com/orgs/EMOD-Hub/discussions).
 Clone the repo from [EMOD-Hub](https://github.com/EMOD-Hub).
 
-# AFTER (README.md — reference-style)
+# AFTER — docs/intro.md (reference-style, labels resolve via docs/bib.md)
 Please post questions on our [discussion board][discussions].
 Clone the repo from [EMOD-Hub][emod-hub].
 ```
 
 ```
-# bib.md (created or appended)
+# docs/bib.md (created or appended)
 [discussions]: https://github.com/orgs/EMOD-Hub/discussions
 [emod-hub]: https://github.com/EMOD-Hub
+```
+
+```
+# BEFORE — README.md at repo root (out of scope, GitHub renders standalone)
+Please email idm@gatesfoundation.org with questions.
+
+# AFTER — README.md (Rule 3 still applies, but the link stays INLINE)
+Please post your questions on our [discussion board](https://github.com/orgs/EMOD-Hub/discussions).
 ```
 
 **Label naming conventions**
@@ -516,7 +567,7 @@ files:
 | Search for `CentOS` (case-insensitive) | Zero occurrences |
 | Search for `packages.idmod.org` | Zero occurrences |
 | Search for `InstituteforDiseaseModeling` | Zero occurrences (except `/issues/` and `/pull/` URLs) |
-| Search for inline external links `](http` in `.md` files | Zero occurrences (all moved to `bib.md`) |
+| Search for inline external links `](http` in in-tree `.md` files (the Sphinx doc tree only) | Zero occurrences (all moved to `bib.md`). Standalone `.md` files outside the doc tree are exempt — inline links there are correct. |
 | All surviving links resolve logically | No broken anchors introduced by removals |
 | Doc build dependencies cover all new file types / toolchain features (Rule 7) | `pyproject.toml` (or equivalent) lists every package the doc build now needs |
 
