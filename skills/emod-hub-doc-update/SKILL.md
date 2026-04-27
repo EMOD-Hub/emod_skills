@@ -2,22 +2,25 @@
 name: emod-hub-doc-update
 description: >
   Use this skill when updating documentation, docstrings, or Markdown files
-  across EMOD-Hub repositories. Triggers include: any request to update, audit,
-  or migrate docs for EMOD-Hub / IDM repos, fix outdated references, remove
-  pages or links to deprecated/retired resources (FAQ, EMOD-InputData,
+  across EMOD-Hub repositories. Works with both Sphinx (conf.py) and MkDocs
+  (mkdocs.yml) projects. Triggers include: any request to update, audit, or
+  migrate docs for EMOD-Hub / IDM repos, fix outdated references, remove pages
+  or links to deprecated/retired resources (FAQ, EMOD-InputData,
   docs-emod-scenarios), update OS support language, fix package index URLs, or
   update GitHub org links. Covers .md, .rst, .txt, .py (docstrings), and
   similar text-based doc files, plus adding any doc-build dependencies the
-  edits require (e.g. pyproject.toml docs extras). Do NOT use for code logic
-  changes, CI/YAML pipelines, or non-documentation source files.
+  edits require (e.g. pyproject.toml docs extras, pymdownx.snippets auto_append
+  for MkDocs). Do NOT use for code logic changes, CI/YAML pipelines, or
+  non-documentation source files.
 ---
 
 # EMOD-Hub Documentation Update Skill
 
 This skill encodes the canonical rules for updating documentation, docstrings,
-and Markdown files across EMOD-Hub repositories. Apply every rule below to
-**every file you touch**. Rules are cumulative — a single file may require
-several changes.
+and Markdown files across EMOD-Hub repositories. It supports both **Sphinx**
+(`docs/conf.py`) and **MkDocs** (`mkdocs.yml`) doc generators. Apply every
+rule below to **every file you touch**. Rules are cumulative — a single file
+may require several changes.
 
 **Apply rules in order.** Rule 1 must run first — it creates `bib.md`, which
 Rules 3 and 6 depend on to write new links correctly. Rule 7 must run last —
@@ -30,28 +33,109 @@ summarise every change made.
 
 ---
 
-## Rule 1 — Centralise External Links into bib.md (Sphinx doc tree only) *(run this first)*
+## Preamble — Detect the Doc Generator *(do this before Rule 1)*
+
+Before applying any rule, identify which doc generator the project uses, and
+locate the doc tree. The choice changes how Rule 1 centralises links and what
+dependencies Rule 7 may need to add.
+
+**Detection rules**
+
+1. **Sphinx** — the project contains `docs/conf.py` (or any `conf.py` whose
+   directory holds `.rst` / `.md` source pages). The doc tree is the directory
+   containing `conf.py`.
+2. **MkDocs** — the project contains `mkdocs.yml` (or `mkdocs.yaml`) at the
+   repo root. The doc tree is the directory referenced by `docs_dir:` in
+   `mkdocs.yml` (default: `docs/`).
+3. **Both** — some repos historically had Sphinx and have migrated (or are
+   migrating) to MkDocs. Treat each tree separately and apply Rule 1 once
+   per tree, with its own `bib.md`.
+4. **Neither** — no `conf.py` and no `mkdocs.yml`. The repo has only
+   standalone Markdown (root `README.md`, etc.). Skip Rule 1 entirely; Rules
+   2–6 still apply but they rewrite URLs inline (per the standalone-file
+   guidance in Rule 1's Scope section). Rule 7 has nothing to do.
+
+**Why the generator matters for Rule 1**
+
+Markdown reference-style links (`[text][label]` resolved by `[label]: URL`)
+behave differently across renderers:
+
+| Renderer | How `bib.md` is consumed |
+|---|---|
+| Sphinx + MyST | MyST reads every `.md` page in the doc tree; reference definitions in any one file resolve across the whole project, so a single `bib.md` "just works" once it lives in the doc tree. |
+| MkDocs (default) | Reference definitions are scoped **per file**. A `bib.md` at `docs/` root will NOT propagate to other pages unless you wire it in. |
+| MkDocs + `pymdownx.snippets` with `auto_append` | The snippets extension appends the listed file(s) to every rendered page, restoring the cross-page resolution behaviour. **This is the supported mechanism for centralised links in MkDocs projects.** |
+| GitHub (renders `README.md`, etc. standalone) | Reference definitions are scoped per file. `bib.md` is invisible to them. |
+
+**MkDocs precondition for Rule 1**
+
+If the project uses MkDocs, before Rule 1 can centralise links, `mkdocs.yml`
+must include the `pymdownx.snippets` extension with `auto_append` listing
+`bib.md`. Example:
+
+```yaml
+markdown_extensions:
+  - pymdownx.snippets:
+      auto_append:
+        - docs/bib.md
+```
+
+If this configuration is **missing**, add it as part of Rule 1's setup (and
+record the dependency under Rule 7 if `pymdownx` is not already pulled in by
+`mkdocs-material` or similar). If the user has explicitly opted out of
+centralised links, fall back to keeping links inline and note this in the
+`## Items to verify` section.
+
+**What "doc tree" means in the rest of this skill**
+
+Throughout this document, "the doc tree" or "in-tree" means whichever of the
+following applies for the project:
+
+- The directory containing `conf.py` (Sphinx).
+- The directory referenced by `docs_dir:` in `mkdocs.yml`, default `docs/`
+  (MkDocs).
+
+Files **outside** the doc tree (root `README.md`, top-level
+`tutorial_*.md`, `examples/**/README.md`, etc.) are "standalone" regardless
+of generator — Rule 1 does not centralise their links.
+
+---
+
+## Rule 1 — Centralise External Links into bib.md (in-tree only) *(run this first)*
 
 **What to do**
 
-Every external URL in a documentation file under the Sphinx doc tree (i.e. the
-project's `docs/` directory) should be defined once in a central `bib.md` file
-at the root of that doc directory, then referenced by a short label in each
-doc. This makes future link maintenance a single-file operation.
-**This rule runs before all others** so that Rules 3 and 6 can write their new
-links directly into `bib.md` as reference-style links rather than inline.
+Every external URL in a documentation file inside the doc tree (Sphinx or
+MkDocs — see the Preamble for how to locate it) should be defined once in a
+central `bib.md` file at the root of that doc directory, then referenced by a
+short label in each doc. This makes future link maintenance a single-file
+operation. **This rule runs before all others** so that Rules 3 and 6 can
+write their new links directly into `bib.md` as reference-style links rather
+than inline.
+
+**Generator-specific precondition**
+
+- **Sphinx + MyST:** no extra setup needed. MyST resolves Markdown
+  reference definitions across the whole tree natively.
+- **MkDocs:** `mkdocs.yml` must include `pymdownx.snippets` with
+  `auto_append: [docs/bib.md]` (or whatever path holds `bib.md`). If absent,
+  add it as part of this rule. Without it, labels defined in `bib.md` will
+  not resolve in any other page. The `pymdownx` extensions ship with
+  `pymdown-extensions`, which is already a transitive dependency of
+  `mkdocs-material` — so usually no new dependency is needed, but verify
+  under Rule 7 if the repo is not on `mkdocs-material`.
 
 **Scope — what `bib.md` covers and what it does not**
 
-`bib.md` is **only consulted by files inside the Sphinx doc tree** (the
-`docs/` directory or wherever `conf.py` lives). It does not propagate to
-standalone Markdown files outside that tree, because Markdown reference
-definitions resolve **per-file** when rendered by GitHub or any other
-non-Sphinx renderer.
+`bib.md` is **only consulted by files inside the doc tree** (the directory
+containing `conf.py` for Sphinx, or `docs_dir:` for MkDocs). It does not
+propagate to standalone Markdown files outside that tree, because Markdown
+reference definitions resolve **per-file** when rendered by GitHub or any
+other non-doc-generator renderer.
 
 Apply Rule 1 to:
 
-- All `.md` files inside the Sphinx doc tree (typically `docs/**/*.md`).
+- All `.md` files inside the doc tree (typically `docs/**/*.md`).
 
 Do **not** apply Rule 1 to:
 
@@ -90,7 +174,7 @@ are already defined.
 **Step 2 — Extract links from each in-scope `.md` file**
 
 For each in-scope `.md` file (per the Scope section above — i.e. files inside
-the Sphinx doc tree):
+the doc tree):
 - Find every inline link of the form `[text](https://...)` where the URL is an
   external address (starts with `http://` or `https://`).
 - Choose a short, descriptive, lowercase hyphenated label for the URL
@@ -100,7 +184,8 @@ the Sphinx doc tree):
 
 For standalone `.md` files outside the doc tree, **leave the inline link
 in place**. Do not move them to `bib.md` — the labels would not resolve
-when GitHub renders the file.
+when GitHub renders the file (and on MkDocs they would not resolve either,
+since standalone files are typically not in `docs_dir`).
 
 **Step 3 — Use reference-style links going forward (in-tree only)**
 
@@ -128,7 +213,7 @@ same file (not to `docs/bib.md`).
 **Examples**
 
 ```
-# BEFORE — docs/intro.md (in-scope, inside the Sphinx doc tree)
+# BEFORE — docs/intro.md (in-scope, inside the doc tree)
 Please post questions on our
 [discussion board](https://github.com/orgs/EMOD-Hub/discussions).
 Clone the repo from [EMOD-Hub](https://github.com/EMOD-Hub).
@@ -142,6 +227,14 @@ Clone the repo from [EMOD-Hub][emod-hub].
 # docs/bib.md (created or appended)
 [discussions]: https://github.com/orgs/EMOD-Hub/discussions
 [emod-hub]: https://github.com/EMOD-Hub
+```
+
+```yaml
+# mkdocs.yml — required wiring for MkDocs projects
+markdown_extensions:
+  - pymdownx.snippets:
+      auto_append:
+        - docs/bib.md
 ```
 
 ```
@@ -458,13 +551,14 @@ See https://github.com/InstituteforDiseaseModeling/emod-api/issues/42 for contex
 
 **What to do**
 
-Some edits introduced by Rules 1–6 can cause the Sphinx / MyST / doc toolchain
-to need a package it did not need before. If a rule adds a new kind of source
-file (for example, the first `.md` file from Rule 1 in a previously RST-only
-project) or begins to exercise a toolchain feature that was configured but
-never actually triggered (e.g. a MyST extension listed in `conf.py` whose
-backing package was never installed), the doc build will start failing with a
-`ModuleNotFoundError` or similar missing-dependency error.
+Some edits introduced by Rules 1–6 can cause the doc toolchain (Sphinx + MyST
+**or** MkDocs + plugins) to need a package it did not need before. If a rule
+adds a new kind of source file (for example, the first `.md` file from Rule 1
+in a previously RST-only Sphinx project) or begins to exercise a toolchain
+feature that was configured but never actually triggered (e.g. a MyST
+extension listed in `conf.py` or an MkDocs plugin listed in `mkdocs.yml`
+whose backing package was never installed), the doc build will start failing
+with a `ModuleNotFoundError` or similar missing-dependency error.
 
 For **every rule that fires**, ask: "does this change cause the doc build to
 need something new?" If yes, add the dependency in the same PR.
@@ -482,12 +576,15 @@ preference (use whichever the repo already uses):
    for docs.
 
 Pin loosely (compatible-release `~=`) to match the repo's existing style.
-Prefer the extras-style form (e.g. `myst-parser[linkify]`) over adding a
-separate top-level dependency, since extras keep related packages co-versioned.
+Prefer the extras-style form (e.g. `myst-parser[linkify]`, `mkdocs-material[imaging]`)
+over adding a separate top-level dependency, since extras keep related
+packages co-versioned.
 
 **When this rule fires**
 
 Common triggers seen in practice:
+
+*Sphinx / MyST projects*
 
 | Earlier change | New dependency needed | Why |
 |---|---|---|
@@ -496,18 +593,39 @@ Common triggers seen in practice:
 | Adding Mermaid / PlantUML diagrams | `sphinxcontrib-mermaid` / `plantweb` | Diagram directives fail without their backing extension. |
 | Adding dollar-math or AMS-math in `.md` files | `myst-parser[linkify]` is not enough — ensure `myst_enable_extensions` has `dollarmath`/`amsmath` and the MyST version supports them | Math extensions are built into `myst-parser` but must be enabled. No new package, but verify `conf.py`. |
 
+*MkDocs projects*
+
+| Earlier change | New dependency needed | Why |
+|---|---|---|
+| Rule 1 wires up `pymdownx.snippets` `auto_append` for the first time and the repo is **not** on `mkdocs-material` | `pymdown-extensions` | `pymdownx.*` extensions live in this package; `mkdocs-material` already depends on it transitively, but a bare `mkdocs` install does not. |
+| Adding API auto-docs via `mkdocs-autoapi` | `mkdocs-autoapi`, `mkdocstrings`, `mkdocstrings-python` | Required to generate auto-API pages. |
+| Adding admonitions / tabs / Mermaid in MkDocs | `mkdocs-material` (or `mkdocs-mermaid2-plugin`) | Material theme provides most extensions; bare MkDocs does not. |
+| Adding Jupyter notebooks to the MkDocs doc tree | `mkdocs-jupyter` | Required to render `.ipynb` source pages. |
+| Adding `include-markdown:` plugin usage (Rule 2 cleanups that previously inlined a removed file) | `mkdocs-include-markdown-plugin` | Plugin must be installed if it's listed under `plugins:` in `mkdocs.yml`. |
+| Adding Mermaid / PlantUML diagrams to `.md` pages | `mkdocs-mermaid2-plugin` (or equivalent) | Plugin must be present for `mermaid` fenced blocks to render. |
+
 **How to verify**
 
 After adding the dependency:
 
 1. Confirm the dependency file change (show the diff).
-2. Confirm the doc-build CI workflow (e.g. `.github/workflows/mkdocs_build.yml`)
-   installs via the same extras set you updated — if it uses `pip install .[docs]`
-   the change will flow through automatically; if it uses a pinned
-   `requirements.txt`, that file needs updating too.
-3. If you can run the build locally, do so and verify no `ModuleNotFoundError`.
+2. Confirm the doc-build CI workflow installs via the same extras set you
+   updated. Common workflow files:
+   - Sphinx: `.github/workflows/sphinx.yml`, `.github/workflows/docs.yml`,
+     ReadTheDocs `.readthedocs.yaml` (where `python.install` references
+     `extra_requirements: [docs]`).
+   - MkDocs: `.github/workflows/mkdocs_build.yml`,
+     `.github/workflows/mkdocs_deploy.yml`.
 
-**Example — Linkify**
+   If the workflow uses `pip install .[docs]` the change flows through
+   automatically; if it uses a pinned `requirements.txt`, that file needs
+   updating too.
+3. If you can run the build locally, do so and verify no `ModuleNotFoundError`:
+   - Sphinx: `sphinx-build -b html docs/ docs/_build/html` (or `make html`).
+   - MkDocs: `mkdocs build --strict` (the `--strict` flag turns warnings into
+     errors and catches missing-plugin issues immediately).
+
+**Example A — Sphinx Linkify**
 
 A repo that previously had only `.rst` docs adds `docs/bib.md` as part of
 Rule 1. `docs/conf.py` already contains:
@@ -538,8 +656,39 @@ which ships as an optional extra of `myst-parser`. Fix in `pyproject.toml`:
  ]
 ```
 
-No workflow change is needed because `mkdocs_build.yml` installs via
+No workflow change is needed because the docs CI installs via
 `pip install .[docs]`. The next build succeeds.
+
+**Example B — MkDocs `pymdownx.snippets` for centralised links**
+
+A bare MkDocs repo (no `mkdocs-material`) adopts Rule 1 by adding to
+`mkdocs.yml`:
+
+```yaml
+markdown_extensions:
+  - pymdownx.snippets:
+      auto_append:
+        - docs/bib.md
+```
+
+The next `mkdocs build` fails with:
+
+```
+ModuleNotFoundError: No module named 'pymdownx'
+```
+
+Fix in `pyproject.toml`:
+
+```diff
+ docs = [
+     "mkdocs",
++    "pymdown-extensions",
+     ...
+ ]
+```
+
+If the project already uses `mkdocs-material`, this is unnecessary — the
+material theme pulls `pymdown-extensions` in transitively.
 
 **What NOT to do**
 
@@ -559,7 +708,9 @@ files:
 
 | Check | Expected result |
 |---|---|
-| `bib.md` exists at docs root | Present and contains all extracted labels |
+| Doc generator detected (Sphinx `conf.py` or MkDocs `mkdocs.yml`) | Generator identified; doc-tree root located before applying Rule 1 |
+| `bib.md` exists at doc-tree root | Present and contains all extracted labels |
+| (MkDocs only) `pymdownx.snippets` `auto_append` includes `bib.md` | Configured in `mkdocs.yml`, otherwise reference labels will not resolve |
 | Search for `faq` (case-insensitive) | No remaining links or toctree entries pointing to an FAQ page |
 | Search for `EMOD-InputData` | Zero occurrences (repo is archived; references should be removed per Rule 2) |
 | Search for `docs-emod-scenarios` | Zero occurrences (repo retired; references should be removed per Rule 2) |
@@ -567,9 +718,9 @@ files:
 | Search for `CentOS` (case-insensitive) | Zero occurrences |
 | Search for `packages.idmod.org` | Zero occurrences |
 | Search for `InstituteforDiseaseModeling` | Zero occurrences (except `/issues/` and `/pull/` URLs) |
-| Search for inline external links `](http` in in-tree `.md` files (the Sphinx doc tree only) | Zero occurrences (all moved to `bib.md`). Standalone `.md` files outside the doc tree are exempt — inline links there are correct. |
+| Search for inline external links `](http` in in-tree `.md` files (the doc tree only — Sphinx or MkDocs) | Zero occurrences (all moved to `bib.md`). Standalone `.md` files outside the doc tree are exempt — inline links there are correct. |
 | All surviving links resolve logically | No broken anchors introduced by removals |
-| Doc build dependencies cover all new file types / toolchain features (Rule 7) | `pyproject.toml` (or equivalent) lists every package the doc build now needs |
+| Doc build dependencies cover all new file types / toolchain features (Rule 7) | `pyproject.toml` (or equivalent) lists every package the doc build now needs (Sphinx + MyST extras OR MkDocs plugins) |
 
 ---
 
