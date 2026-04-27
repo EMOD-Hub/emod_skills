@@ -101,17 +101,32 @@ of generator — Rule 1 does not centralise their links.
 
 ---
 
-## Rule 1 — Centralise External Links into bib.md (in-tree only) *(run this first)*
+## Rule 1 — Centralise *Selected* External Links into bib.md (in-tree only) *(run this first)*
 
 **What to do**
 
-Every external URL in a documentation file inside the doc tree (Sphinx or
-MkDocs — see the Preamble for how to locate it) should be defined once in a
-central `bib.md` file at the root of that doc directory, then referenced by a
-short label in each doc. This makes future link maintenance a single-file
-operation. **This rule runs before all others** so that Rules 3 and 6 can
-write their new links directly into `bib.md` as reference-style links rather
-than inline.
+A *subset* of external URLs in documentation files inside the doc tree
+(Sphinx or MkDocs — see the Preamble for how to locate it) should be defined
+once in a central `bib.md` file at the root of that doc directory, then
+referenced by a short label in each doc. **`bib.md` is for shared / critical
+/ unstable links only — not a sweep of every URL in the docs.** This rule
+runs before all others so that Rules 3 and 6 can write any new links that
+qualify directly into `bib.md` as reference-style links rather than inline.
+
+**Inclusion criteria — only centralise a link if at least one is true**
+
+1. The link **appears (or is likely to appear) in more than one doc page**.
+2. The link is a **critical external dependency** — official API docs,
+   specifications, language standards, or anything that an EMOD-Hub doc
+   reader is repeatedly directed to.
+3. The URL is **unstable or versioned** (e.g. `docs.someservice.com/v2/...`,
+   release-tagged URLs, anything that may need to be re-pointed wholesale).
+
+If none of these apply, **leave the link inline** — single-use stable URLs
+(e.g. a one-off Docker install page, a one-off GitHub Codespaces help page,
+a single CONTRIBUTING.md link) are easier to read and maintain inline than
+through a bib.md round-trip. Adding low-value entries to `bib.md` adds noise
+without payoff.
 
 **Generator-specific precondition**
 
@@ -171,28 +186,39 @@ Update links here; all docs reference this file by label.
 If `bib.md` already exists, append new entries — do not duplicate labels that
 are already defined.
 
-**Step 2 — Extract links from each in-scope `.md` file**
+**Step 2 — Extract qualifying links from each in-scope `.md` file**
 
 For each in-scope `.md` file (per the Scope section above — i.e. files inside
 the doc tree):
 - Find every inline link of the form `[text](https://...)` where the URL is an
   external address (starts with `http://` or `https://`).
-- Choose a short, descriptive, lowercase hyphenated label for the URL
-  (e.g. `emod-hub`, `discussions`, `pypi-emod-api`, `ubuntu-releases`).
+- **Apply the inclusion criteria above.** Skip the link if it is single-use,
+  stable, and not a critical external dependency.
+- For links that qualify, choose a short, descriptive, lowercase hyphenated
+  label (e.g. `emod-hub`, `discussions`, `pypi-emod-api`, `ubuntu-releases`).
 - Add an entry to `bib.md`: `[label]: https://full-url-here`
 - Replace the inline link in the doc with a reference-style link: `[text][label]`
+
+A practical rule of thumb: scan the same URL across the whole doc tree
+first. If it appears once, leave it inline. If it appears in two or more
+files (or is the kind of canonical reference — discussion board, EMOD
+docs landing page, official spec — that's likely to be linked again),
+centralise it.
 
 For standalone `.md` files outside the doc tree, **leave the inline link
 in place**. Do not move them to `bib.md` — the labels would not resolve
 when GitHub renders the file (and on MkDocs they would not resolve either,
 since standalone files are typically not in `docs_dir`).
 
-**Step 3 — Use reference-style links going forward (in-tree only)**
+**Step 3 — Use reference-style links going forward (in-tree only, when criteria are met)**
 
 Any new links introduced by subsequent rules in **in-scope** doc files
 (e.g. the discussions board URL from Rule 3, the EMOD-Hub GitHub URL from
-Rule 6) must also be added to `bib.md` and referenced by label — never
-written inline.
+Rule 6) should be evaluated against the inclusion criteria. If they
+qualify (they're likely multi-doc — `[discussions]` and `[emod-hub]`
+typically do — or are critical external dependencies), add them to `bib.md`
+and reference by label. If they don't qualify (a one-off URL only this page
+will ever cite), keep them inline.
 
 In **standalone** `.md` files, the same subsequent rules just rewrite the
 URL inline. Do not introduce new `[label]:` definitions in standalone files
@@ -202,6 +228,10 @@ same file (not to `docs/bib.md`).
 
 **What NOT to move to bib.md**
 
+- **Single-use stable URLs that aren't critical external deps** — e.g. a
+  one-off Docker install page in a single installation doc, a single
+  GitHub Codespaces help link in one tutorial, a one-off CONTRIBUTING.md
+  link. Leave these inline.
 - Links in standalone `.md` files outside the Sphinx doc tree (root
   `README.md`, top-level `tutorial_*.md`, `examples/**/README.md`, etc.) —
   these stay inline (see Scope section above).
@@ -491,8 +521,10 @@ pip install emod-api
   - `git clone` commands
   - `pip install git+https://...` URLs
   - Badge URLs (shields.io, readthedocs, etc.) that embed the org name
-- After updating the URL, add it to `bib.md` (per Rule 1) and replace any
-  Markdown inline link with a reference-style link using the new label.
+- After updating the URL, evaluate it against Rule 1's inclusion criteria.
+  If it qualifies (multi-doc, critical external dep, or unstable/versioned),
+  add it to `bib.md` and use a reference-style link. Otherwise keep the
+  rewritten URL inline.
 - Preserve the repository name (the part after the org) exactly as-is; only
   the org segment changes.
 - **Exception — issue links:** If the URL points to a specific issue or pull
@@ -709,7 +741,7 @@ files:
 | Check | Expected result |
 |---|---|
 | Doc generator detected (Sphinx `conf.py` or MkDocs `mkdocs.yml`) | Generator identified; doc-tree root located before applying Rule 1 |
-| `bib.md` exists at doc-tree root | Present and contains all extracted labels |
+| `bib.md` exists at doc-tree root | Present and contains every link that meets Rule 1's inclusion criteria; single-use stable URLs are correctly left inline |
 | (MkDocs only) `pymdownx.snippets` `auto_append` includes `bib.md` | Configured in `mkdocs.yml`, otherwise reference labels will not resolve |
 | Search for `faq` (case-insensitive) | No remaining links or toctree entries pointing to an FAQ page |
 | Search for `EMOD-InputData` | Zero occurrences (repo is archived; references should be removed per Rule 2) |
@@ -718,7 +750,7 @@ files:
 | Search for `CentOS` (case-insensitive) | Zero occurrences |
 | Search for `packages.idmod.org` | Zero occurrences |
 | Search for `InstituteforDiseaseModeling` | Zero occurrences (except `/issues/` and `/pull/` URLs) |
-| Search for inline external links `](http` in in-tree `.md` files (the doc tree only — Sphinx or MkDocs) | Zero occurrences (all moved to `bib.md`). Standalone `.md` files outside the doc tree are exempt — inline links there are correct. |
+| Inline external links `](http` in in-tree `.md` files (the doc tree only — Sphinx or MkDocs) | Each remaining inline link is justified — it failed Rule 1's inclusion criteria (single-use, stable, not a critical external dep). Multi-doc / critical / unstable URLs have been moved to `bib.md`. Standalone `.md` files outside the doc tree are exempt — inline links there are always correct. |
 | All surviving links resolve logically | No broken anchors introduced by removals |
 | Doc build dependencies cover all new file types / toolchain features (Rule 7) | `pyproject.toml` (or equivalent) lists every package the doc build now needs (Sphinx + MyST extras OR MkDocs plugins) |
 
