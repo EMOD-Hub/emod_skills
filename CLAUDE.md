@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repo contains **no executable code**. It is a shared library of Claude Code *skills* — each skill is a `SKILL.md` prompt file that teaches Claude how to perform a specific repo-wide task (e.g. doc migration) for EMOD-Hub projects. Edits here are almost always to Markdown prompt content, not to software.
 
-The repo is designed to hold **many skills side by side**. Today it contains one (`emod-hub-doc-update`), but additional skills will be added over time — each gets its own sibling folder under `skills/`. When you add or substantially modify a skill, expect to touch both the skill folder and this file (see "Keeping CLAUDE.md in sync" below).
+The repo is designed to hold **many skills side by side**. Today it contains two (`emod-hub-doc-update`, `recover-rst-content`), and additional skills will be added over time — each gets its own sibling folder under `skills/`. When you add or substantially modify a skill, expect to touch both the skill folder and this file (see "Keeping CLAUDE.md in sync" below).
 
 Consumers install skills by symlinking an individual skill folder into `~/.claude/skills/<name>` (global) or `<repo>/.claude/skills/<name>` (per-project). Because of the symlink model, any change made in this repo propagates to every installation on `git pull` — there is no packaging or release step, and backwards compatibility of skill *behavior* matters when you modify an existing `SKILL.md`.
 
@@ -15,6 +15,8 @@ Consumers install skills by symlinking an individual skill folder into `~/.claud
 ```
 skills/
 ├── emod-hub-doc-update/
+│   └── SKILL.md
+├── recover-rst-content/
 │   └── SKILL.md
 └── <future-skill-name>/     # add new skills as sibling folders
     └── SKILL.md
@@ -38,6 +40,17 @@ This skill encodes six cumulative rules for migrating docs across EMOD-Hub repos
 - Rule 1 (centralize links into `bib.md`) is a prerequisite for Rules 3 and 6, which add new links that must be written as reference-style links against `bib.md`. Do not change Rule 1's ordering or its output format without updating Rules 3 and 6 in lockstep.
 - Rule 6 (GitHub org rewrite `InstituteforDiseaseModeling` → `EMOD-Hub`) has two explicit exceptions — `/issues/` and `/pull/` URLs are left untouched, and repos not migrated to `EMOD-Hub` (documented case: `docs-emod-scenarios`) are left untouched. If you add another non-migrated repo, list it in the same exception block so Claude does not rewrite it.
 - The "Verification Checklist" and "Output Format" sections at the bottom are what consuming Claude sessions use to self-check their work. If you add a new rule, add a corresponding grep-able row to the checklist.
+
+## Editing the existing `recover-rst-content` skill
+
+This skill recovers documentation content (most often `.. csv-table::` blocks) that was dropped during the rst → MkDocs conversion of an EMOD-Hub docs repo. It expects two trees side by side: the editable `./docs/` (current `.md` files, possibly with later post-conversion edits) and a read-only `../<repo>-pre-conversion/docs/` tree of original `.rst` files. When modifying it, be aware:
+
+- The procedure is ordered and the steps depend on each other. Step 0 (build the list of `.rst` pages with no `.md` counterpart) feeds Step 3's "intentionally removed" classification — content that supported a workflow centered on a deleted page is a candidate for "leave it cut, don't restore." Do not reorder these steps or remove Step 0 without rewriting Step 3 in lockstep.
+- Step 4 is a **mandatory checkpoint**: after planning, the skill must stop and wait for user confirmation before editing, unless the user has explicitly opted into "proceed without asking per-file." Do not weaken this — the whole point is letting the user catch misclassifications before any `.md` file is touched.
+- Step 6 is an **invariant exception**: edits stay unstaged. The skill must not run `git add`, `git commit`, or any staging command — the user reviews everything via `git diff`. If you add new steps, preserve this.
+- The "rst → MkDocs conversion table" is tuned to conventions observed in this repo and is paired with a standing instruction to check how a similar construct was already handled in the repo's `.md` files before inventing a translation. If you extend the table, keep that "repo consistency wins" framing — do not turn it into a generic rst → Markdown reference.
+- The skill explicitly forbids restoring content that points to a deleted `:doc:` target (the prose existed *because of* the link, so restoring it is restoring something deliberately cut). If you add new "what to restore" categories, do not undermine this rule — flag-and-ask is the documented default.
+- The skill also caps batch size: do not process more than ~5 files without checkpointing with the user. If you add automation hints, preserve this cap.
 
 ## Keeping CLAUDE.md in sync
 

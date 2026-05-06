@@ -17,6 +17,7 @@ a slash command.
 | Skill | Slash command | What it does |
 |---|---|---|
 | [emod-hub-doc-update](skills/emod-hub-doc-update/SKILL.md) | `/emod-hub-doc-update` | Updates `.md`, `.rst`, and docstring files across EMOD-Hub repos: removes FAQ pages, replaces the IDM email with the discussion board, updates the supported OS to Ubuntu 22.04, removes the old package index URL, and migrates GitHub org links from `InstituteforDiseaseModeling` to `EMOD-Hub`. |
+| [recover-rst-content](skills/recover-rst-content/SKILL.md) | `/recover-rst-content` | Reconciles current MkDocs `.md` files in `./docs/` against the original `.rst` files in a sibling `../<repo>-pre-conversion/docs/` tree, restores content (most often `.. csv-table::` parameter/channel tables) that was dropped during the rst → MkDocs conversion, preserves later post-conversion edits, and flags content that was likely intentionally cut. |
 
 ---
 
@@ -36,9 +37,10 @@ Installs all skills once so they are available in every repo.
 # Clone this repo somewhere on your machine
 git clone https://github.com/EMOD-Hub/emod_skills.git ~/emod_skills
 
-# Symlink the skills folder into your global Claude config
+# Symlink each skill into your global Claude config
 mkdir -p ~/.claude/skills
-ln -s ~/emod_skills/skills/emod-hub-doc-update ~/.claude/skills/emod-hub-doc-update
+ln -s ~/emod_skills/skills/emod-hub-doc-update  ~/.claude/skills/emod-hub-doc-update
+ln -s ~/emod_skills/skills/recover-rst-content  ~/.claude/skills/recover-rst-content
 ```
 
 **Windows (PowerShell, run as Administrator or with Developer Mode on):**
@@ -50,10 +52,14 @@ git clone https://github.com/EMOD-Hub/emod_skills.git $env:USERPROFILE\emod_skil
 # Create the global skills folder if it does not exist
 New-Item -ItemType Directory -Force -Path $env:USERPROFILE\.claude\skills | Out-Null
 
-# Symlink the skill into your global Claude config
+# Symlink each skill into your global Claude config
 New-Item -ItemType SymbolicLink `
   -Path  "$env:USERPROFILE\.claude\skills\emod-hub-doc-update" `
   -Target "$env:USERPROFILE\emod_skills\skills\emod-hub-doc-update"
+
+New-Item -ItemType SymbolicLink `
+  -Path  "$env:USERPROFILE\.claude\skills\recover-rst-content" `
+  -Target "$env:USERPROFILE\emod_skills\skills\recover-rst-content"
 ```
 
 > Windows note: creating symlinks requires either an elevated PowerShell
@@ -222,8 +228,10 @@ Instructions on how Claude should format and structure its response.
 emod_skills/
 ├── README.md                          # this file
 └── skills/
-    └── emod-hub-doc-update/
-        └── SKILL.md                   # doc migration skill
+    ├── emod-hub-doc-update/
+    │   └── SKILL.md                   # doc migration skill
+    └── recover-rst-content/
+        └── SKILL.md                   # rst → MkDocs content recovery skill
 ```
 
 New skills each get their own folder under `skills/` following the same pattern.
